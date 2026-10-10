@@ -1,4 +1,4 @@
-/* DoomFlight memory placement for the Teensy 4.1 (see PsramHeap.c).
+/* DoomFlight memory placement for the Teensy 4.1 (rationale in PsramHeap.c).
  * PSRAM: DoomSubtopology::doom, the Doom::DoomEngine instance, carries full-resolution frame storage that does not
  *        fit OCRAM. The section is zeroed by PsramHeap.c before the C++ constructors run.
  */

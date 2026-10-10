@@ -1,11 +1,15 @@
 // ======================================================================
 // \title  PsramHeap.c
-// \brief  PSRAM-backed heap for large allocations on the Teensy 4.1
+// \brief  PSRAM heap for the stock doomgeneric engine's libc allocations on the Teensy 4.1
 //
-// DOOM's zone allocator (6 MiB) and screen buffer (1 MiB) do not fit the 768 KiB OCRAM, so malloc/free/calloc/realloc
-// are wrapped (-Wl,--wrap, see CMakeLists.txt): requests at or above PSRAM_HEAP_THRESHOLD are served from a sys_heap
-// in the PSRAM linker region and everything else goes to the libc heap in OCRAM. The DoomEngine instance's static
-// frame storage is linked into PSRAM by psram_sections.ld and zeroed here.
+// DOOM's 6 MiB zone and 1 MiB screen buffer only fit the PSRAM, but the unmodified doomgeneric submodule requests
+// them straight from libc (I_ZoneBase -> malloc, DG_ScreenBuffer = malloc, lumpinfo calloc) with no allocation hook,
+// so an Fw::MemAllocator cannot be handed to it; the libc malloc symbol is the only seam. Zephyr's libc has a single
+// malloc arena in the chosen SRAM (768 KiB OCRAM) and the PSRAM only exists after the memc driver (POST_KERNEL), so
+// malloc/free/calloc/realloc are wrapped (-Wl,--wrap, CMakeLists.txt): requests >= PSRAM_HEAP_THRESHOLD come from a
+// sys_heap in the PSRAM linker region, the rest from the libc heap in OCRAM. F Prime's BufferManagers already use
+// Fw::MemAllocator (DoomSubtopologyConfig / ComCcsds::Allocation) with bins below the threshold, so they stay in OCRAM.
+// The DoomEngine instance is linked into PSRAM by psram_sections.ld and zeroed here (the kernel only zeroes .bss).
 // ======================================================================
 #include <stdbool.h>
 #include <stdint.h>
