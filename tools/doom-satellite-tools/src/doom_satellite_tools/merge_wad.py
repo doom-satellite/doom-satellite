@@ -31,10 +31,13 @@ def main(argv=None):
     with open(args.wad, "rb") as f:
         data = f.read()
     fs = LittleFS(block_size=BLOCK, block_count=COUNT)
-    with fs.open(args.name, "wb") as f:
-        f.write(data)
-    print("lfs: wrote %s, %d bytes (%d KiB of %d KiB free for uploads)"
-          % (args.name, len(data), (PART_SIZE - len(data)) // 1024 - 64, PART_SIZE // 1024))
+    try:
+        with fs.open(args.name, "wb") as f:
+            f.write(data)
+    except Exception as exc:  # littlefs raises its own error class on ENOSPC
+        print("error: %s (%d bytes) does not fit in the %d KiB partition: %s" % (args.wad, len(data), PART_SIZE // 1024, exc),
+              file=sys.stderr)
+        return 1
     image = fs.context.buffer
     ih = IntelHex(args.firmware)
     print("firmware: 0x%08x..0x%08x" % (ih.minaddr(), ih.maxaddr()))
@@ -47,7 +50,8 @@ def main(argv=None):
         if any(x != 0xFF for x in blk):
             nonblank += 1
             ih.puts(PART_BASE + b * BLOCK, bytes(blk))
-    print("lfs: %d/%d blocks written" % (nonblank, COUNT))
+    print("lfs: wrote %s, %d bytes; %d/%d blocks used, %d KiB free for uploads"
+          % (args.name, len(data), nonblank, COUNT, (COUNT - nonblank) * BLOCK // 1024))
     ih.write_hex_file(args.output)
     print("wrote", args.output)
     return 0

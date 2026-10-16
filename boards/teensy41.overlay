@@ -138,7 +138,7 @@
 
 /* Program flash: the firmware is linked into the first 1 MB (zephyr,code-partition; the image is ~0.7 MB) so it can
  * never grow into the WAD filesystem partition. That partition takes the rest of the range teensy_loader_cli programs
- * on a Teensy 4.1 (0x000000..0x7C0000; it rejects records at or above 0x7C0000, the top 256 KB PJRC reserves), i.e.
+ * on a Teensy 4.1 (0x000000..0x7C0000; it rejects HEX records at or above 0x7C0000, so the top 256 KB is unusable), i.e.
  * 6912 KiB: the shareware doom1.wad (4 MB) plus ~2.7 MB for WADs uploaded over fileUplink. A pre-built LittleFS image
  * (doom-satellite-merge-wad, tools/doom-satellite-tools) is flashed together with the firmware.
  */
