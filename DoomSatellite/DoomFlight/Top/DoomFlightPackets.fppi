@@ -221,6 +221,13 @@ telemetry packets DoomFlightPackets {
   }
 
 } omit {
+  # Zephyr.ZephyrUartDriver (fprime-zephyr ota-with-patch) link counters: console-only diagnostics
+  comDriver.RxBytes
+  comDriver.RxOverrunCount
+  comDriver.RxBackpressureCount
+  comDriver.RxAllocFailCount
+  comDriver.TxBytes
+  comDriver.TxDropCount
   CdhCore.cmdDisp.CommandErrors
   # Only has one library, no custom versions
   CdhCore.version.LibraryVersion03

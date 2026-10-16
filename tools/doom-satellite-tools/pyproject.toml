@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "doom-satellite-tools"
+version = "0.1.0"
+description = "Host-side tools for the doom-satellite Teensy 4.1 deployment"
+requires-python = ">=3.9"
+dependencies = ["littlefs-python", "intelhex"]
+
+[project.scripts]
+doom-satellite-merge-wad = "doom_satellite_tools.merge_wad:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

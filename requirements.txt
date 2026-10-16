@@ -8,6 +8,6 @@ west
 -r lib/zephyr-workspace/zephyr/scripts/requirements-base.txt
 -r lib/zephyr-workspace/zephyr/scripts/requirements-build-test.txt
 -r lib/zephyr-workspace/zephyr/scripts/requirements-run-test.txt
-# Teensy 4.1 WAD filesystem image (tools/make_wad_image.py)
-littlefs-python
-intelhex
+# Project tools (install from the repository root): WAD fetch and the Teensy WAD image merge
+./lib/fprime-stress/tools/fprime-get-doom
+./tools/doom-satellite-tools

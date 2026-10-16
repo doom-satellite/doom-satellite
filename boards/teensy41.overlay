@@ -5,7 +5,7 @@
  * - Native ENET Ethernet (PJRC Ethernet kit) is enabled by the board devicetree
  * - APS6404L PSRAM soldered on the bottom PSRAM pads (CS0), memory mapped by FlexSPI2 at 0x70000000
  * - The second FlexSPI2 pad (CS1) is unpopulated (READ_ID answers zeros); the DOOM WAD lives in a LittleFS partition
- *   in the upper 6.25 MB of the 8 MB W25Q64 program flash, which the XIP-safe FlexSPI NOR driver programs from ITCM
+ *   in the upper 6.75 MB of the 8 MB W25Q64 program flash, which the XIP-safe FlexSPI NOR driver programs from ITCM
  */
 
 &zephyr_udc0 {
@@ -136,9 +136,11 @@
 	};
 };
 
-/* Program flash: the firmware is linked into the first 1.5 MB (zephyr,code-partition) so the image can never grow
- * into the WAD filesystem partition. That partition ends at 0x7C0000, the highest address teensy_loader_cli accepts for
- * the Teensy 4.1, so a pre-built LittleFS image (tools/make_wad_image.py) can be flashed together with the firmware.
+/* Program flash: the firmware is linked into the first 1 MB (zephyr,code-partition; the image is ~0.7 MB) so it can
+ * never grow into the WAD filesystem partition. That partition takes the rest of the range teensy_loader_cli programs
+ * on a Teensy 4.1 (0x000000..0x7C0000; it rejects records at or above 0x7C0000, the top 256 KB PJRC reserves), i.e.
+ * 6912 KiB: the shareware doom1.wad (4 MB) plus ~2.7 MB for WADs uploaded over fileUplink. A pre-built LittleFS image
+ * (doom-satellite-merge-wad, tools/doom-satellite-tools) is flashed together with the firmware.
  */
 &w25q64jvxgim {
 	partitions {
@@ -148,12 +150,12 @@
 
 		slot0_partition: partition@0 {
 			label = "image-0";
-			reg = <0x00000000 DT_SIZE_K(1536)>;
+			reg = <0x00000000 DT_SIZE_K(1024)>;
 		};
 
-		wad_partition: partition@180000 {
+		wad_partition: partition@100000 {
 			label = "wad";
-			reg = <0x00180000 DT_SIZE_K(6400)>;
+			reg = <0x00100000 DT_SIZE_K(6912)>;
 		};
 	};
 };

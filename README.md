@@ -18,8 +18,14 @@ This guide starts after:
 ```bash
 git clone --recurse-submodules <this repo> doom-satellite && cd doom-satellite
 python3 -m venv fprime-venv && . fprime-venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt      # from the repository root: it also installs the two project tools below
 ```
+
+`requirements.txt` installs the F Prime and Zephyr Python dependencies plus two console tools from this tree:
+`fprime-get-doom` (WAD fetch, `lib/fprime-stress/tools/fprime-get-doom`) and `doom-satellite-merge-wad` (Teensy WAD
+image, `tools/doom-satellite-tools`). Submodules: `lib/fprime` tracks nasa/fprime `devel` plus the pending
+[IpCfg socket-header change](https://github.com/nasa/fprime/pull/6122), `lib/fprime-zephyr` the fprime-community
+`ota-with-patch` branch, `lib/fprime-stress` main.
 
 ## 1. Toolchain and Zephyr modules
 
@@ -37,11 +43,10 @@ pip install -r requirements.txt
 
 ## 2. Get the WAD (fprime-get-doom plugin)
 
-The shareware `doom1.wad` is not committed. `fprime-get-doom` (in fprime-stress) downloads it from public mirrors and
-verifies the v1.9 size and SHA-256:
+The shareware `doom1.wad` is not committed. `fprime-get-doom` (installed by `requirements.txt`) downloads it from
+public mirrors and verifies the v1.9 size and SHA-256:
 
 ```bash
-pip install ./lib/fprime-stress/tools/fprime-get-doom
 fprime-get-doom -o doom1.wad
 ```
 
@@ -49,26 +54,29 @@ fprime-get-doom -o doom1.wad
 
 ## 3. Build DoomFlight (Teensy 4.1)
 
-`settings.ini` makes `zephyr` the default toolchain; select the board explicitly (the file's default board is the
-RP2040 the project started on):
+`settings.ini` makes `zephyr` the default toolchain and `teensy41` the default board (`-DBOARD=<other>` to override):
 
 ```bash
-fprime-util generate -DBOARD=teensy41
+fprime-util generate
 fprime-util build -j"$(nproc)"
 ```
 
-Outputs: `build-artifacts/zephyr.hex` (firmware, linked into the first 1.5 MB of the 8 MB program flash) and the
-ground dictionary `build-artifacts/zephyr/fprime-zephyr-deployment/dict/DoomFlightTopologyDictionary.json`.
+Outputs: `build-artifacts/zephyr.hex` (firmware, linked into the first 1 MB of the 8 MB program flash) and the ground
+dictionary `build-artifacts/zephyr/fprime-zephyr-deployment/dict/DoomFlightTopologyDictionary.json`.
 
-The WAD lives in a LittleFS partition in the rest of the program flash (`boards/teensy41.overlay`, `wad` partition at
-0x180000, 6400 KiB), mounted at `/lfs`; the engine opens `/lfs/doom1.wad` at boot. Merge the filesystem into the hex so
-one flash pass programs both:
+The WAD lives in a LittleFS partition in the rest of the program flash that `teensy_loader_cli` can program
+(`boards/teensy41.overlay`: `wad` partition at 0x100000, 6912 KiB, ending at the loader's 0x7C0000 limit), mounted at
+`/lfs`; the engine opens `/lfs/doom1.wad` at boot. Merge the filesystem into the hex
+so one flash pass programs both:
 
 ```bash
-python3 tools/make_wad_image.py build-artifacts/zephyr.hex doom1.wad DoomFlight-teensy41.hex
+doom-satellite-merge-wad build-artifacts/zephyr.hex doom1.wad DoomFlight-teensy41.hex
 ```
 
-The WAD only needs to be flashed once; a later firmware-only `zephyr.hex` leaves the partition intact.
+The WAD only needs to be flashed once; a later firmware-only `zephyr.hex` leaves the partition intact. With doom1.wad
+in place about 2.7 MB of `/lfs` is free for files uploaded from the ground (`Svc.FileUplink` writes under `/lfs`), enough
+for PWADs but not for the retail `DOOM.WAD`/`DOOM2.WAD` (12-14 MB). The engine opens one WAD, `/lfs/doom1.wad`, at
+boot: to play another, stop DOOM (`Doom.Stop`), upload the file as `/lfs/doom1.wad` and power-cycle the board.
 
 ## 4. Flash
 
@@ -86,17 +94,14 @@ read; `DoomSubtopology.doom.State` reports `RUNNING`.
 
 ## 5. Run the ground system and play
 
-YAMCS is the supported ground system. Install `fprime-yamcs` (bundles its own JRE) in the venv and start it with the
-DOOM display extension from fprime-stress and the frame channels kept realtime-only (they are a multi-MB/s stream that
-should not be archived):
+YAMCS is the supported ground system. Install `fprime-yamcs` (bundles its own JRE) in the venv and start it from the
+repository root; `fprime-gds.yml` there carries the whole configuration (UART on `/dev/ttyACM0` at 115200, the
+dictionary above, the DOOM display web extension from fprime-stress, and the frame channels kept realtime-only since
+they are a stream that should not be archived). Command-line flags override the file, e.g. `--uart-device`:
 
 ```bash
 pip install fprime-yamcs
-fprime-yamcs -n --communication-selection uart --uart-device /dev/ttyACM0 --uart-baud 115200 \
-    --dictionary build-artifacts/zephyr/fprime-zephyr-deployment/dict/DoomFlightTopologyDictionary.json \
-    --yamcs-web-extension-dirs lib/fprime-stress/yamcs-plugin/doom-display \
-    --yamcs-realtime-only-channels 'DoomSubtopology.frameTlmProcessor.FrameRow*' \
-                                   DoomSubtopology.frameTlmProcessor.PaletteOut
+fprime-yamcs                       # or: fprime-yamcs --uart-device /dev/ttyACM1
 ```
 
 Open http://localhost:8090, click the red **DOOM** button in the lower-right corner, click the canvas to focus it and
@@ -107,8 +112,8 @@ cannot be confirmed from the ground). Useful channels: `DoomSubtopology.doom.Fra
 from its delta, the nominal `FrameRateHz` channel is virtual), `DoomSubtopology.frameTlmProcessor.FramesDropped`,
 `DoomFlight.rateGroupDoom.RgCycleSlips`.
 
-`fprime-gds` also works for commanding and telemetry without the display (`fprime-gds.yml` carries the UART and
-dictionary settings): `fprime-gds --uart-device /dev/ttyACM0`.
+`fprime-gds` reads the same `fprime-gds.yml` (ignoring the `yamcs-*` keys with a warning) and works for commanding and
+telemetry without the display: `fprime-gds`.
 
 ## 6. DoomCoprocessor (Linux, optional)
 
@@ -136,6 +141,7 @@ pytest --dictionary build-artifacts/zephyr/fprime-zephyr-deployment/dict/DoomFli
 | `DoomSatellite/DoomCoprocessor/` | Linux hub endpoint |
 | `DoomSatellite/Components/` | Project components (hub frame adapter, null parameter DB, fatal handler) |
 | `boards/` | Zephyr board overlays and Kconfig fragments (`teensy41`, `adafruit_feather_rp2040`) |
-| `tools/make_wad_image.py` | LittleFS WAD image merged into the Teensy hex |
+| `fprime-gds.yml`, `settings.ini` | Ground (fprime-yamcs / fprime-gds) and build (toolchain, default board) configuration |
+| `tools/doom-satellite-tools/` | `doom-satellite-merge-wad`: LittleFS WAD image merged into the Teensy hex |
 | `lib/fprime-stress` | DOOM engine component, frame pipeline, `fprime-get-doom`, YAMCS `doom-display` |
 | `lib/fprime`, `lib/fprime-zephyr`, `lib/zephyr-workspace` | F Prime, its Zephyr OSAL/drivers, Zephyr |

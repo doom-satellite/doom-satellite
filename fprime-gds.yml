@@ -1,6 +1,15 @@
+# Ground configuration shared by fprime-gds and fprime-yamcs (run from the repository root; the yamcs-* keys are
+# ignored with a warning by fprime-gds). Override on the command line, e.g. --uart-device /dev/ttyACM1.
 command-line-options:
   communication-selection: uart
+  uart-device: /dev/ttyACM0
   uart-baud: 115200
   no-app:
   dictionary: !PATH ./build-artifacts/zephyr/fprime-zephyr-deployment/dict/DoomFlightTopologyDictionary.json
   output-unframed-data: "-"
+  # DOOM display web extension from fprime-stress; the frame stream is realtime-only (not archived)
+  yamcs-web-extension-dirs:
+    - !PATH ./lib/fprime-stress/yamcs-plugin/doom-display
+  yamcs-realtime-only-channels:
+    - "DoomSubtopology.frameTlmProcessor.FrameRow*"
+    - DoomSubtopology.frameTlmProcessor.PaletteOut
