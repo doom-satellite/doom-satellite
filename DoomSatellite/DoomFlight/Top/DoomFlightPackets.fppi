@@ -43,6 +43,15 @@ telemetry packets DoomFlightPackets {
     fileUplink.FilesReceivedFailed
   }
 
+  packet ComLink id 5 group 2 {
+    comDriver.RxBytes
+    comDriver.RxOverrunCount
+    comDriver.RxBackpressureCount
+    comDriver.RxAllocFailCount
+    comDriver.TxBytes
+    comDriver.TxDropCount
+  }
+
   packet Version id 4 group 3 {
     CdhCore.version.FrameworkVersion
     CdhCore.version.ProjectVersion
@@ -222,12 +231,6 @@ telemetry packets DoomFlightPackets {
 
 } omit {
   # Zephyr.ZephyrUartDriver (fprime-zephyr ota-with-patch) link counters: console-only diagnostics
-  comDriver.RxBytes
-  comDriver.RxOverrunCount
-  comDriver.RxBackpressureCount
-  comDriver.RxAllocFailCount
-  comDriver.TxBytes
-  comDriver.TxDropCount
   CdhCore.cmdDisp.CommandErrors
   # Only has one library, no custom versions
   CdhCore.version.LibraryVersion03

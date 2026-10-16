@@ -58,6 +58,7 @@ enum TopologyConstants {
     HUB_LARGE_BUFFER_SIZE = 4096,  // UDP receive buffers and packed frames (4,009 bytes, 4,025 with the hub header)
     HUB_LARGE_BUFFER_COUNT = 12,
     HUB_RECV_PRIORITY = 5,
+    COM_DRIVER_RX_PRIORITY = 2,  // event-driven UART RX task: above the rate groups, tiny work per wake
     HUB_RECONNECT_PRIORITY = 6,
 };
 
@@ -162,6 +163,13 @@ void setupTopology(const TopologyState& state) {
     }
 
     comDriver.configure(state.uartDevice, state.baudRate);
+    {
+        const Os::Task::Status rxStatus = comDriver.start(COM_DRIVER_RX_PRIORITY, Default::STACK_SIZE);
+        if (rxStatus != Os::Task::OP_OK) {
+            printk("DoomFlight: comDriver RX task not started (status %d); draining from rateGroup10Hz\n",
+                   static_cast<int>(rxStatus));
+        }
+    }
 #if defined(CONFIG_USBD_CDC_ACM_CLASS)
     cdcUartDevice = state.uartDevice;
     k_work_init_delayable(&cdcFlowControlWork, updateCdcFlowControl);
@@ -187,6 +195,8 @@ void teardownTopology(const TopologyState& state) {
     freeThreads(state);
     hubComDriver.stop();
     (void)hubComDriver.join();
+    comDriver.stop();
+    (void)comDriver.join();
     hubBufferManager.cleanup();
     tearDownComponents(state);
 }
