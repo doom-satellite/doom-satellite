@@ -3,7 +3,7 @@
 // \brief main program for the DoomCoprocessor F' application (arm-linux)
 //
 // Usage:
-//   DoomCoprocessor [-a remote_address] [-p remote_port] [-u local_port] [-w /path/to/DOOM1.WAD] [-S] [-h]
+//   DoomCoprocessor [-a remote_address] [-p remote_port] [-u local_port] [-h]
 // ======================================================================
 // Used to access topology functions
 #include <DoomSatellite/DoomCoprocessor/Top/DoomCoprocessorTopology.hpp>
