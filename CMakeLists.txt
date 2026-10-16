@@ -30,7 +30,7 @@ if (FPRIME_PLATFORM STREQUAL "Zephyr")
     # so VERSION is never expanded inside them and the upstream sources stay untouched.
     target_compile_options(fprime_stress_doomgeneric PRIVATE -include zephyr/kernel.h)
     set_target_properties(Svc_FatalHandler PROPERTIES EXCLUDE_FROM_ALL TRUE)
-    # Unused fprime-zephyr drivers; LoRa also asserts against the Zephyr 4.4 lora enum (this tree is on 4.3)
+    # fprime-zephyr drivers this topology does not use
     set_target_properties(fprime-zephyr_Drv_ZephyrSpiDriver fprime-zephyr_Drv_LoRa PROPERTIES EXCLUDE_FROM_ALL TRUE)
     set_target_properties(Drv_TcpClient Drv_TcpServer PROPERTIES EXCLUDE_FROM_ALL TRUE)
 else()

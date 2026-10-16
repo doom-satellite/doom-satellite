@@ -29,8 +29,8 @@ image, `tools/doom-satellite-tools`). Submodules: `lib/fprime` tracks nasa/fprim
 
 ## 1. Toolchain and Zephyr modules
 
-- Install the [Zephyr SDK](https://docs.zephyrproject.org/latest/develop/toolchains/zephyr_sdk.html) 0.17.x (arm
-  toolchain is enough) and export `ZEPHYR_SDK_INSTALL_DIR=<sdk dir>` if you did not register it with cmake.
+- Install the [Zephyr SDK](https://docs.zephyrproject.org/latest/develop/toolchains/zephyr_sdk.html) 1.0.x (arm
+  toolchain is enough; `west sdk install -t arm-zephyr-eabi` picks 1.0.1 from the pinned Zephyr v4.4.2) and export `ZEPHYR_SDK_INSTALL_DIR=<sdk dir>` if you did not register it with cmake.
 - Fetch the Zephyr modules named in `west.yml` (NXP HAL, CMSIS, picolibc, littlefs); the Zephyr tree itself is the
   `lib/zephyr-workspace/zephyr` submodule:
 
