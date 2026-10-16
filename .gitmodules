@@ -4,11 +4,11 @@
 [submodule "lib/fprime"]
 	path = lib/fprime
 	url = https://github.com/JPL-Devin/fprime.git
-	branch = devin/1790989254-ipcfg-socket-headers
+	branch = devin/1792182121-ipcfg-socket-headers-on-devel
 [submodule "lib/fprime-zephyr"]
 	path = lib/fprime-zephyr
-	url = https://github.com/JPL-Devin/fprime-zephyr.git
-	branch = devin/1790995930-touch-reset-generalize
+	url = https://github.com/fprime-community/fprime-zephyr.git
+	branch = ota-with-patch
 [submodule "lib/fprime-stress"]
 	path = lib/fprime-stress
 	url = https://github.com/LeStarch/fprime-stress.git
