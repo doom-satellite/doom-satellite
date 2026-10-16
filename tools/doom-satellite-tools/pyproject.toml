@@ -13,6 +13,7 @@ dependencies = ["littlefs-python", "intelhex"]
 doom-satellite-merge-wad = "doom_satellite_tools.merge_wad:main"
 doom-satellite-view = "doom_satellite_tools.view:main"
 doom-satellite-hub-bridge = "doom_satellite_tools.hub_bridge:main"
+doom-satellite-soak = "doom_satellite_tools.soak:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
