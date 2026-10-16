@@ -7,15 +7,7 @@ module DoomFlight {
   enum Ports_RateGroups {
     rateGroup10Hz
     rateGroup1Hz
-  }
-
-  @ Hub buffer port carrying packed downsampled frames and palettes from DoomCoprocessor, and their echo back
-  constant HUB_FRAME_PORT = 0
-
-  @ Repeater outputs
-  enum Ports_FrameRepeater {
-    ECHO   @< Echo to DoomCoprocessor
-    LOCAL  @< Local frame telemetry
+    rateGroupDoom
   }
 
   deployment topology DoomFlight {
@@ -27,20 +19,27 @@ module DoomFlight {
     import ComCcsds.Subtopology
 
   # ----------------------------------------------------------------------
+  # DoomSubtopology instances: the engine, its buffer manager, the downsampler and the frame telemetry run here
+  # ----------------------------------------------------------------------
+    instance DoomSubtopology.doom
+    instance DoomSubtopology.doomBufferManager
+    instance DoomSubtopology.frameDownsampler
+    instance DoomSubtopology.frameTlmProcessor
+
+  # ----------------------------------------------------------------------
   # Instances used in the topology
   # ----------------------------------------------------------------------
     instance chronoTime
     instance rateGroup10Hz
     instance rateGroup1Hz
+    instance rateGroupDoom
+    instance fileUplink
     instance rateGroupDriver
     instance timer
     instance comDriver
     instance nullPrmDb
     instance touchReset
     instance cmdSplitter
-    instance frameRepeater
-    instance frameAdapter
-    instance frameTlmProcessor
     instance hub
     instance hubComDriver
     instance hubByteStreamAdapter
@@ -94,6 +93,12 @@ module DoomFlight {
       comDriver.ready         -> ComCcsds.comStub.drvConnected
     }
 
+    connections FileUplink {
+      # Uplinked file packets (the WAD) are written under /lfs
+      ComCcsds.fprimeRouter.fileOut -> fileUplink.bufferSendIn
+      fileUplink.bufferSendOut      -> ComCcsds.fprimeRouter.fileBufferReturnIn
+    }
+
     connections HubRemote {
       # Commands for the remote deployment and their responses
       cmdSplitter.RemoteCmd -> hub.cmdDispIn
@@ -104,28 +109,16 @@ module DoomFlight {
     }
 
     connections HubTelemetry {
-      # Remote (DOOM) telemetry is packetized for the local downlink using the merged packet list
-      # (tools/merge_packets.py)
+      # Remote telemetry is packetized for the local downlink
       hub.tlmOut -> CdhCore.tlmSend.TlmRecv
     }
 
-    connections HubFrames {
-      # The repeater copies each packed frame or palette from the hub, returns the original to the hub, and sends one
-      # copy back to DoomCoprocessor and one to frameAdapter. The echo copy is relayed by frameAdapter because the hub
-      # returns each bufferIn buffer to the instance that sent it, and the copy must go back to hubBufferManager.
-      hub.bufferOut[HUB_FRAME_PORT]                    -> frameRepeater.portIn
-      frameRepeater.deallocate                         -> hub.bufferOutReturn[HUB_FRAME_PORT]
-      frameRepeater.allocate                           -> hubBufferManager.bufferGetCallee
-      frameRepeater.portOut[Ports_FrameRepeater.ECHO]  -> frameAdapter.echoIn
-      frameAdapter.echoOut                             -> hub.bufferIn[HUB_FRAME_PORT]
-      hub.bufferInReturn[HUB_FRAME_PORT]               -> frameAdapter.echoOutReturn
-      frameAdapter.echoReturn                          -> hubBufferManager.bufferSendIn
-      frameRepeater.portOut[Ports_FrameRepeater.LOCAL] -> frameAdapter.packedIn
-      frameAdapter.packedInReturn                      -> hubBufferManager.bufferSendIn
-
-      # Unpacked frames and palettes to frame telemetry
-      frameAdapter.frameOut   -> frameTlmProcessor.frameIn
-      frameAdapter.paletteOut -> frameTlmProcessor.paletteIn
+    connections FramePipeline {
+      # Synchronous on the rateGroupDoom thread: engine -> downsampler -> row and palette telemetry
+      DoomSubtopology.doom.frameOut               -> DoomSubtopology.frameDownsampler.frameIn
+      DoomSubtopology.doom.paletteOut             -> DoomSubtopology.frameDownsampler.paletteIn
+      DoomSubtopology.frameDownsampler.frameOut   -> DoomSubtopology.frameTlmProcessor.frameIn
+      DoomSubtopology.frameDownsampler.paletteOut -> DoomSubtopology.frameTlmProcessor.paletteIn
     }
 
     connections Hub {
@@ -165,6 +158,11 @@ module DoomFlight {
       rateGroup1Hz.RateGroupMemberOut[4] -> ComCcsds.aggregator.timeout
       rateGroup1Hz.RateGroupMemberOut[5] -> CdhCore.Subtopology.eventsRun
       rateGroup1Hz.RateGroupMemberOut[6] -> hubBufferManager.schedIn
+      rateGroup1Hz.RateGroupMemberOut[7] -> DoomSubtopology.doomBufferManager.schedIn
+
+      # DOOM rate group (DOOM_RATE_HZ in DoomFlightTopology.cpp): one engine tick per cycle
+      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroupDoom] -> rateGroupDoom.CycleIn
+      rateGroupDoom.RateGroupMemberOut[0] -> DoomSubtopology.doom.schedIn
     }
 
     connections DoomFlight {

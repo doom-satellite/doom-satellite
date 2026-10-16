@@ -21,8 +21,13 @@
 
 // Include autocoded FPP constants
 #include <zephyr/drivers/uart.h>
+#include <cstring>
+#include "DoomSatellite/DoomFlight/Top/DoomFlight_DoomFlightPacketsTlmPacketsAc.hpp"
 #include "DoomSatellite/DoomFlight/Top/FppConstantsAc.hpp"
-#include "DoomSatellite/DoomFlight/Top/DoomSatelliteMergedPackets.hpp"
+
+// DoomSubtopology configuration phases: memAllocator and the BufferManager bins
+#include "Doom/DoomConfig/FppConstantsAc.hpp"
+#include "Doom/DoomSubtopology/SubtopologyTopologyDefs.hpp"
 
 /**
  * \brief required ping constants
@@ -50,6 +55,12 @@ enum { WARN = 3, FATAL = 5 };
 namespace DoomFlight_rateGroup1Hz {
 enum { WARN = 3, FATAL = 5 };
 }
+namespace DoomFlight_rateGroupDoom {
+enum { WARN = 3, FATAL = 5 };
+}
+namespace DoomFlight_fileUplink {
+enum { WARN = 3, FATAL = 5 };
+}
 }  // namespace PingEntries
 
 // Definitions are placed within a namespace named after the deployment
@@ -68,6 +79,9 @@ struct TopologyState {
     const char* hubRemoteAddress;         //!< IPv4 address of the remote GenericHub deployment
     U16 hubRemotePort;                    //!< UDP port the remote GenericHub receives on
     U16 hubLocalPort;                     //!< UDP port this GenericHub receives on
+    const char* wadPath;                  //!< DOOM IWAD path; the engine is not created when it cannot be opened
+    bool doomAutoStart;                   //!< Start the DOOM engine at setup instead of waiting for doom.Start
+    const char* fileUplinkDirectory;      //!< Directory uplinked files may be written under
     CdhCore::SubtopologyState cdhCore;    //!< Subtopology state for CdhCore
     ComCcsds::SubtopologyState comCcsds;  //!< Subtopology state for ComCcsds
 };

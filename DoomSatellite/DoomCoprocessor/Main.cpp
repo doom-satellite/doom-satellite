@@ -20,18 +20,15 @@ namespace {
 const char* const DEFAULT_REMOTE_ADDRESS = "192.168.11.2";
 constexpr U16 DEFAULT_REMOTE_PORT = 50556;
 constexpr U16 DEFAULT_LOCAL_PORT = 50555;
-const char* const DEFAULT_WAD_PATH = "doom1.wad";
 
 void printUsage(const char* app) {
     Fw::Logger::log(
-        "Usage: %s [-a address] [-p port] [-u port] [-w wad_path] [-S] [-h]\n"
+        "Usage: %s [-a address] [-p port] [-u port] [-h]\n"
         "    -a address   Control node (DoomFlight) hub address (default %s)\n"
         "    -p port      Control node hub UDP port (default %u)\n"
         "    -u port      Local hub UDP port (default %u)\n"
-        "    -w wad_path  DOOM IWAD path (default %s)\n"
-        "    -S           Auto-start the DOOM engine on boot\n"
         "    -h           Print this usage text and exit\n",
-        app, DEFAULT_REMOTE_ADDRESS, DEFAULT_REMOTE_PORT, DEFAULT_LOCAL_PORT, DEFAULT_WAD_PATH);
+        app, DEFAULT_REMOTE_ADDRESS, DEFAULT_REMOTE_PORT, DEFAULT_LOCAL_PORT);
 }
 }  // namespace
 
@@ -53,10 +50,9 @@ int main(int argc, char* argv[]) {
     inputs.hubRemoteAddress = DEFAULT_REMOTE_ADDRESS;
     inputs.hubRemotePort = DEFAULT_REMOTE_PORT;
     inputs.hubLocalPort = DEFAULT_LOCAL_PORT;
-    inputs.wadPath = DEFAULT_WAD_PATH;
 
     int option = 0;
-    while ((option = getopt(argc, argv, "ha:p:u:w:S")) != -1) {
+    while ((option = getopt(argc, argv, "ha:p:u:")) != -1) {
         switch (option) {
             case 'a':
                 inputs.hubRemoteAddress = optarg;
@@ -66,12 +62,6 @@ int main(int argc, char* argv[]) {
                 break;
             case 'u':
                 inputs.hubLocalPort = static_cast<U16>(std::atoi(optarg));
-                break;
-            case 'w':
-                inputs.wadPath = optarg;
-                break;
-            case 'S':
-                inputs.autoStart = true;
                 break;
             case 'h':
                 printUsage(argv[0]);

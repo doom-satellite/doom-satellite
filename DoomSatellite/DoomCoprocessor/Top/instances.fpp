@@ -32,12 +32,6 @@ module DoomCoprocessor {
     stack size Default.STACK_SIZE \
     priority 35
 
-  @ 35 Hz: DOOM's native gameplay cadence, one doomgeneric tick per cycle
-  instance rateGroupDoom: Svc.ActiveRateGroup base id 0x20006000 \
-    queue size Default.QUEUE_SIZE \
-    stack size Default.STACK_SIZE \
-    priority 43
-
   @ 1 Hz housekeeping
   instance rateGroup1Hz: Svc.ActiveRateGroup base id 0x20007000 \
     queue size Default.QUEUE_SIZE \
@@ -61,8 +55,5 @@ module DoomCoprocessor {
   instance rateGroupDriver: Svc.RateGroupDriver base id 0x20008000
 
   instance linuxTimer: Svc.LinuxTimer base id 0x20009000
-
-  @ Packs downsampled frames and palettes for the hub; unpacks the copies DoomFlight echoes back
-  instance frameAdapter: Components.FrameBufferAdapter base id 0x2000A000
 
 }

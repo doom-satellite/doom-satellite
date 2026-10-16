@@ -28,17 +28,28 @@ constexpr FwSizeType getRateGroupPeriod(const FwSizeType hz) {
     return 1000 / (hz * BASE_RATEGROUP_PERIOD_MS);
 }
 
-// The reference topology divides the incoming clock signal (1Hz) into sub-signals: 1Hz, 1/2Hz, and 1/4Hz with 0 offset
+// DOOM's native cadence is 35 Hz; the Teensy runs 30 Hz. The engine memory lives in QSPI PSRAM (90 MHz), where
+// a native 320x200 tick (logic, render, downsample, 50 row channels) measures 20-31 ms: 84% of the CPU at 35 Hz,
+// which starves the telemetry and downlink threads (or, with the engine at the lowest priority, falls behind
+// until the health ping is late). At 30 Hz the engine takes ~70% and the board holds the rate with a working
+// downlink. The engine paces game time per tick, so play runs at 30/35 of real time. The 640x400 upscale and a
+// frame copy used to cost ~50 ms more and forced 5 Hz. See the rateGroupDoom comment in instances.fpp.
+constexpr FwSizeType DOOM_RATE_HZ = 30;
+
+// The 1 kHz base timer is divided into the 10Hz, 1Hz and DOOM rate groups with 0 offset
 Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{
     // Array of divider objects
-    {getRateGroupPeriod(10), 0},  // 10Hz
-    {getRateGroupPeriod(1), 0},   // 1Hz
+    {getRateGroupPeriod(10), 0},            // 10Hz
+    {getRateGroupPeriod(1), 0},             // 1Hz
+    {getRateGroupPeriod(DOOM_RATE_HZ), 0},  // DOOM
 }};
 
 // Rate groups may supply a context token to each of the attached children whose purpose is set by the project. The
-// reference topology sets each token to zero as these contexts are unused in this project.
+// 10Hz and 1Hz tokens are unused; DoomEngine reads its tick period in microseconds from the DOOM rate group's token.
 U32 rateGroup10HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {getRateGroupPeriod(10)};
 U32 rateGroup1HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {getRateGroupPeriod(1)};
+U32 rateGroupDoomContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {
+    static_cast<U32>(getRateGroupPeriod(DOOM_RATE_HZ) * BASE_RATEGROUP_PERIOD_MS * 1000)};
 
 enum TopologyConstants {
     HUB_BUFFER_MANAGER_ID = 300,
@@ -85,6 +96,7 @@ void configureTopology(const TopologyState& state) {
     // Rate groups require context arrays.
     rateGroup10Hz.configure(rateGroup10HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup10HzContext));
     rateGroup1Hz.configure(rateGroup1HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup1HzContext));
+    rateGroupDoom.configure(rateGroupDoomContext, FW_NUM_ARRAY_ELEMENTS(rateGroupDoomContext));
     // Reboot into the bootloader when the host opens the console at the board's touch baud rate
     if (touchReset.configure(state.uartDevice) != Fw::Success::SUCCESS) {
         printk("Touch reset unavailable\n");
@@ -101,9 +113,21 @@ void configureTopology(const TopologyState& state) {
     (void)hubComDriver.configureSend(state.hubRemoteAddress, state.hubRemotePort);
     (void)hubComDriver.configureRecv("0.0.0.0", state.hubLocalPort, HUB_LARGE_BUFFER_SIZE);
 
-    frameRepeater.configure(Svc::BufferRepeater::WARNING_ON_OUT_OF_MEMORY);
-
     cmdSplitter.configure(REMOTE_BASE_OPCODE);
+
+    fileUplink.configure((state.fileUplinkDirectory != nullptr) ? state.fileUplinkDirectory : "/");
+
+    // All engine heap allocation (PSRAM, see PsramHeap.c) happens here, before any task runs. An unreadable WAD
+    // leaves the engine uncreated and doom.Start is rejected until the next boot.
+    Doom::InitStatus initStatus = DoomSubtopology::doom.setWadPath((state.wadPath != nullptr) ? state.wadPath : "");
+    if (initStatus == Doom::InitStatus::OK) {
+        initStatus = DoomSubtopology::doom.initEngine();
+    }
+    if (initStatus != Doom::InitStatus::OK) {
+        Fw::String text;
+        initStatus.toString(text);
+        printk("DoomFlight: DOOM engine init failed (%s): Start will be rejected\n", text.toChar());
+    }
 }
 
 // Public functions for use in main program are namespaced with deployment name DoomFlight
@@ -130,6 +154,12 @@ void setupTopology(const TopologyState& state) {
     Os::TaskString hubName("hub");
     hubComDriver.start(hubName, HUB_RECV_PRIORITY, Default::STACK_SIZE, Os::Task::TASK_DEFAULT, HUB_RECONNECT_PRIORITY,
                        Default::STACK_SIZE);
+
+    if (state.doomAutoStart) {
+        Fw::String status;
+        DoomSubtopology::doom.forceStart().toString(status);
+        printk("DoomFlight: auto-start: doom.forceStart() returned %s\n", status.toChar());
+    }
 
     comDriver.configure(state.uartDevice, state.baudRate);
 #if defined(CONFIG_USBD_CDC_ACM_CLASS)

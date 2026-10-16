@@ -28,6 +28,7 @@ manifest:
           - hal_rpi_pico  # Raspberry Pi Pico HAL (REQUIRED for RP2040/RP2350)
           - hal_nxp    # NXP HAL (REQUIRED for Teensy 4.x / i.MX RT1062)
           - picolibc   # C library
+          - littlefs   # LittleFS (REQUIRED for the Teensy 4.1 WAD filesystem)
 
 
     # Core modules required for RP2040/RP2350
@@ -59,6 +60,12 @@ manifest:
     - name: picolibc
       path: lib/zephyr-workspace/modules/lib/picolibc
       revision: 560946f26db075c296beea5b39d99e6de43c9010
+
+    - name: littlefs
+      path: lib/zephyr-workspace/modules/fs/littlefs
+      revision: 8f5ca347843363882619d8f96c00d8dbd88a8e79
+      groups:
+        - fs
 
 
   self:

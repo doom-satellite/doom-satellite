@@ -25,10 +25,11 @@ fprime_setup_included_code()
 add_fprime_subdirectory("${CMAKE_CURRENT_LIST_DIR}/DoomSatellite")
 
 if (FPRIME_PLATFORM STREQUAL "Zephyr")
+    # Upstream DOOM's config.h defines VERSION, which the NXP SoC headers (reached through the POSIX headers DOOM
+    # includes after config.h) use as a register name. Pull the kernel headers in first: later includes are guarded,
+    # so VERSION is never expanded inside them and the upstream sources stay untouched.
+    target_compile_options(fprime_stress_doomgeneric PRIVATE -include zephyr/kernel.h)
     set_target_properties(Svc_FatalHandler PROPERTIES EXCLUDE_FROM_ALL TRUE)
     set_target_properties(fprime-zephyr_Drv_ZephyrSpiDriver PROPERTIES EXCLUDE_FROM_ALL TRUE)
     set_target_properties(Drv_TcpClient Drv_TcpServer PROPERTIES EXCLUDE_FROM_ALL TRUE)
-    # The DOOM engine and downsampler run on DoomCoprocessor; DoomFlight builds only FrameTlmProcessor and the Doom types
-    set_target_properties(Doom_DoomEngine Doom_FrameDownsampler fprime_stress_doomgeneric
-                          PROPERTIES EXCLUDE_FROM_ALL TRUE)
 endif()

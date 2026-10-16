@@ -24,6 +24,9 @@
 #include <cstring>
 
 const struct device* serial = DEVICE_DT_GET(DT_NODELABEL(cdc_acm_uart0));
+#if defined(CONFIG_BOARD_TEENSY41)
+extern "C" void psram_heap_report(void);  // PsramHeap.c
+#endif
 
 //! Seconds the CDC ACM port is watched for a touch reset before the topology starts
 static constexpr U32 BOOT_WINDOW_SECONDS = 10;
@@ -159,8 +162,15 @@ int main(int argc, char* argv[]) {
     inputs.hubRemoteAddress = "192.168.11.1";
     inputs.hubRemotePort = 50555;
     inputs.hubLocalPort = 50556;
+    // The WAD lives on the LittleFS mount (boards/<board>.overlay fstab) and is uploaded there with fileUplink
+    inputs.fileUplinkDirectory = "/lfs";
+    inputs.wadPath = "/lfs/doom1.wad";
+    inputs.doomAutoStart = true;
 
     // Setup, cycle, and teardown topology
+#if defined(CONFIG_BOARD_TEENSY41)
+    psram_heap_report();
+#endif
     printk("DoomFlight: setting up topology\n");
     DoomFlight::setupTopology(inputs);
     printk("DoomFlight: starting rate groups\n");

@@ -36,6 +36,28 @@ module DoomFlight {
     stack size Default.STACK_SIZE \
     priority 4
 
+  @ One doomgeneric tick per cycle at DOOM_RATE_HZ (DoomFlightTopology.cpp). Measured on the Teensy 4.1
+  @ with the engine in 90 MHz QSPI PSRAM, native 320x200: the DOOM thread needs 84% of the CPU at 35 Hz
+  @ and 68-70% at 30 Hz, and the downlink, telemetry and event threads need ~15%, so 35 Hz only fits by
+  @ starving them; 30 Hz leaves ~18% idle.
+  @ Priority: lowest. A long tick then runs in the time left over by command, event, telemetry and
+  @ downlink service instead of stalling them. The 1 Hz telemetry burst still costs this group ~100 ms
+  @ a second (the Zephyr UART driver busy-waits in uart_poll_out while USB CDC-ACM drains).
+  @ Queue: 60 cycles (2 s at 30 Hz). The health ping is queued behind the pending cycles, and a full
+  @ queue drops it (PingIn is a drop port), so the queue must hold the longest tick plus the burst: a level
+  @ load measures up to 1.7 s (RgMaxTime), i.e. ~50 cycles. The engine paces game time per tick, so queued
+  @ cycles replay deterministically; only the queue size bounds the wall-clock lag.
+  instance rateGroupDoom: Svc.ActiveRateGroup base id 0x10003000 \
+    queue size 60 \
+    stack size Default.STACK_SIZE \
+    priority 14
+
+  @ Receives files from the ground (the DOOM WAD) into the LittleFS mount at /lfs
+  instance fileUplink: Svc.FileUplink base id 0x10004000 \
+    queue size Default.QUEUE_SIZE \
+    stack size Default.STACK_SIZE \
+    priority 6
+
 
   # ----------------------------------------------------------------------
   # Queued component instances
@@ -67,15 +89,5 @@ module DoomFlight {
   instance hubBufferManager: Svc.BufferManager base id 0x1001A000
 
   instance cmdSplitter: Svc.CmdSplitter base id 0x1001B000
-
-  @ Repeats each packed frame and palette from the hub: one copy is echoed to DoomCoprocessor, one goes to frameAdapter
-  instance frameRepeater: Svc.BufferRepeater base id 0x1001C000
-
-  @ Unpacks frames and palettes received from DoomCoprocessor for frameTlmProcessor
-  instance frameAdapter: Components.FrameBufferAdapter base id 0x1001D000
-
-  @ Converts frames and palettes from DoomCoprocessor into row and palette telemetry. Keeps the DoomSubtopology base
-  @ id, so channel ids match a DoomSubtopology deployment.
-  instance frameTlmProcessor: Doom.FrameTlmProcessor base id DoomSubtopologyConfig.BASE_ID + 0x03000
 
 }

@@ -3,7 +3,9 @@
  *
  * - USB CDC ACM is the console and the F Prime downlink/uplink (Zephyr.ZephyrUartDriver) and touch reset UART
  * - Native ENET Ethernet (PJRC Ethernet kit) is enabled by the board devicetree
- * - APS6404L PSRAM soldered on the bottom PSRAM pads, memory mapped by FlexSPI2 at 0x70000000
+ * - APS6404L PSRAM soldered on the bottom PSRAM pads (CS0), memory mapped by FlexSPI2 at 0x70000000
+ * - The second FlexSPI2 pad (CS1) is unpopulated (READ_ID answers zeros); the DOOM WAD lives in a LittleFS partition
+ *   in the upper 6.25 MB of the 8 MB W25Q64 program flash, which the XIP-safe FlexSPI NOR driver programs from ITCM
  */
 
 &zephyr_udc0 {
@@ -14,6 +16,7 @@
 
 / {
 	chosen {
+		zephyr,code-partition = &slot0_partition;
 		zephyr,console = &cdc_acm_uart0;
 		zephyr,shell-uart = &cdc_acm_uart0;
 		zephyr,sram = &sram;
@@ -27,11 +30,30 @@
 		reg = <0x20200000 DT_SIZE_K(768)>;
 	};
 
-	/* PSRAM linker region: sections may be placed here with Z_GENERIC_SECTION(PSRAM) once FlexSPI2 is up */
+	/* PSRAM linker region: DoomFlight/PsramHeap.c carves its heap from it and DoomFlight/psram_sections.ld links the
+	 * DoomEngine instance into it. Available once FlexSPI2 is up (POST_KERNEL, CONFIG_MEMC_INIT_PRIORITY).
+	 */
 	psram: memory@70000000 {
 		compatible = "zephyr,memory-region", "mmio-sram";
 		reg = <0x70000000 DT_SIZE_M(8)>;
 		zephyr,memory-region = "PSRAM";
+	};
+
+	fstab {
+		compatible = "zephyr,fstab";
+
+		/* WAD filesystem, formatted on first mount. Os::File opens paths under /lfs through the Zephyr fs API */
+		lfs: lfs {
+			compatible = "zephyr,fstab,littlefs";
+			mount-point = "/lfs";
+			partition = <&wad_partition>;
+			automount;
+			read-size = <16>;
+			prog-size = <16>;
+			cache-size = <256>;
+			lookahead-size = <32>;
+			block-cycles = <512>;
+		};
 	};
 };
 
@@ -42,8 +64,6 @@
 			pinmux = <&iomuxc_gpio_emc_23_flexspi2_a_dqs>;
 			drive-strength = "r0-6";
 			input-schmitt-enable;
-			bias-pull-down;
-			bias-pull-down-value = "100k";
 			slew-rate = "fast";
 			nxp,speed = "200-mhz";
 			input-enable;
@@ -51,15 +71,36 @@
 
 		group1 {
 			pinmux = <&iomuxc_gpio_emc_22_flexspi2_a_ss1_b>,
-				 <&iomuxc_gpio_emc_24_flexspi2_a_ss0_b>,
-				 <&iomuxc_gpio_emc_25_flexspi2_a_sclk>,
-				 <&iomuxc_gpio_emc_26_flexspi2_a_data0>,
+				 <&iomuxc_gpio_emc_24_flexspi2_a_ss0_b>;
+			drive-strength = "r0-6";
+			slew-rate = "fast";
+			nxp,speed = "200-mhz";
+			bias-pull-up;
+			bias-pull-up-value = "100k";
+			input-schmitt-enable;
+			input-enable;
+		};
+
+		group2 {
+			pinmux = <&iomuxc_gpio_emc_25_flexspi2_a_sclk>;
+			drive-strength = "r0-6";
+			slew-rate = "fast";
+			nxp,speed = "200-mhz";
+			input-schmitt-enable;
+			input-enable;
+		};
+
+		group3 {
+			pinmux = <&iomuxc_gpio_emc_26_flexspi2_a_data0>,
 				 <&iomuxc_gpio_emc_27_flexspi2_a_data1>,
 				 <&iomuxc_gpio_emc_28_flexspi2_a_data2>,
 				 <&iomuxc_gpio_emc_29_flexspi2_a_data3>;
 			drive-strength = "r0-6";
 			slew-rate = "fast";
 			nxp,speed = "200-mhz";
+			bias-pull-up;
+			bias-pull-up-value = "47k";
+			input-schmitt-enable;
 			input-enable;
 		};
 	};
@@ -78,7 +119,11 @@
 		/* APS6404L is 8MB, 64MBit pSRAM */
 		size = <DT_SIZE_M(8 * 8)>;
 		reg = <0>;
-		spi-max-frequency = <DT_FREQ_M(88)>;
+		/* FlexSPI2 root clock is PLL3 PFD0 / 8 = 90 MHz and the memc driver only divides it by an integer,
+		 * rounding down: 88 MHz would select /2 = 45 MHz on the bus. 90 MHz runs the APS6404L (133 MHz part)
+		 * at the full root clock with SERCLKDIV = /1.
+		 */
+		spi-max-frequency = <DT_FREQ_M(120)>;
 		status = "okay";
 		cs-interval-unit = <1>;
 		cs-interval = <2>;
@@ -89,22 +134,27 @@
 		ahb-write-wait-unit = <2>;
 		ahb-write-wait-interval = <0>;
 	};
+};
 
-	/* Second chip (large pads, CS1) on 16 MB boards: enable here and grow the psram region to DT_SIZE_M(16) */
-	aps6404l1: aps6404l@1 {
-		compatible = "nxp,imx-flexspi-aps6404l";
-		size = <DT_SIZE_M(8 * 8)>;
-		reg = <1>;
-		spi-max-frequency = <DT_FREQ_M(88)>;
-		status = "disabled";
-		cs-interval-unit = <1>;
-		cs-interval = <2>;
-		cs-hold-time = <3>;
-		cs-setup-time = <3>;
-		data-valid-time = <6>;
-		column-space = <0>;
-		ahb-write-wait-unit = <2>;
-		ahb-write-wait-interval = <0>;
+/* Program flash: the firmware is linked into the first 1.5 MB (zephyr,code-partition) so the image can never grow
+ * into the WAD filesystem partition. That partition ends at 0x7C0000, the highest address teensy_loader_cli accepts for
+ * the Teensy 4.1, so a pre-built LittleFS image (tools/make_wad_image.py) can be flashed together with the firmware.
+ */
+&w25q64jvxgim {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		slot0_partition: partition@0 {
+			label = "image-0";
+			reg = <0x00000000 DT_SIZE_K(1536)>;
+		};
+
+		wad_partition: partition@180000 {
+			label = "wad";
+			reg = <0x00180000 DT_SIZE_K(6400)>;
+		};
 	};
 };
 
