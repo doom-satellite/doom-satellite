@@ -122,4 +122,55 @@ void FrameRepeaterTester::testSkipsUnconnectedOutputs() {
     ASSERT_TLM_PalettesRepeated(0, 1U);
 }
 
+void FrameRepeaterTester::testOutputGate() {
+    const FwIndexType last = FrameRepeater::NUM_FRAMEOUT_OUTPUT_PORTS - 1;
+    Fw::Buffer pixels(this->m_pixels, PIXELS);
+    Doom::Palette palette;
+
+    // Disabled at setup: the slot is skipped for frames and palettes, the others still repeat
+    this->component.setOutputEnabled(last, false);
+    this->invoke_to_frameIn(0, 1, 8, 8, pixels);
+    this->invoke_to_paletteIn(0, palette);
+    ASSERT_from_frameOut_SIZE(FrameRepeater::NUM_FRAMEOUT_OUTPUT_PORTS - 1);
+    ASSERT_from_paletteOut_SIZE(FrameRepeater::NUM_PALETTEOUT_OUTPUT_PORTS - 1);
+    for (FwIndexType i = 0; i < FrameRepeater::NUM_FRAMEOUT_OUTPUT_PORTS - 1; i++) {
+        ASSERT_EQ(this->m_frameOrder[static_cast<FwSizeType>(i)], i);
+        ASSERT_EQ(this->m_paletteOrder[static_cast<FwSizeType>(i)], i);
+    }
+    ASSERT_TLM_FramesRepeated_SIZE(1);
+    ASSERT_TLM_FramesRepeated(0, 1);
+
+    // Re-enabled from the ground: the slot repeats again
+    this->clearHistory();
+    this->m_frameCalls = 0;
+    this->m_paletteCalls = 0;
+    this->sendCmd_SET_OUTPUT(0, 10, static_cast<U8>(last), Fw::Enabled::ENABLED);
+    ASSERT_CMD_RESPONSE_SIZE(1);
+    ASSERT_CMD_RESPONSE(0, FrameRepeater::OPCODE_SET_OUTPUT, 10, Fw::CmdResponse::OK);
+    ASSERT_EVENTS_OutputStateChanged_SIZE(1);
+    ASSERT_EVENTS_OutputStateChanged(0, static_cast<U8>(last), Fw::Enabled::ENABLED);
+    this->invoke_to_frameIn(0, 2, 8, 8, pixels);
+    ASSERT_from_frameOut_SIZE(FrameRepeater::NUM_FRAMEOUT_OUTPUT_PORTS);
+
+    // Disabled from the ground
+    this->clearHistory();
+    this->m_frameCalls = 0;
+    this->m_paletteCalls = 0;
+    this->sendCmd_SET_OUTPUT(0, 11, static_cast<U8>(last), Fw::Enabled::DISABLED);
+    ASSERT_CMD_RESPONSE(0, FrameRepeater::OPCODE_SET_OUTPUT, 11, Fw::CmdResponse::OK);
+    this->invoke_to_paletteIn(0, palette);
+    ASSERT_from_paletteOut_SIZE(FrameRepeater::NUM_PALETTEOUT_OUTPUT_PORTS - 1);
+
+    // A slot outside the arrays is rejected without touching the others
+    this->clearHistory();
+    this->m_frameCalls = 0;
+    this->m_paletteCalls = 0;
+    this->sendCmd_SET_OUTPUT(0, 12, static_cast<U8>(FrameRepeater::NUM_FRAMEOUT_OUTPUT_PORTS), Fw::Enabled::DISABLED);
+    ASSERT_CMD_RESPONSE(0, FrameRepeater::OPCODE_SET_OUTPUT, 12, Fw::CmdResponse::VALIDATION_ERROR);
+    ASSERT_EVENTS_OutputIndexInvalid_SIZE(1);
+    ASSERT_EVENTS_OutputIndexInvalid(0, static_cast<U8>(FrameRepeater::NUM_FRAMEOUT_OUTPUT_PORTS));
+    this->invoke_to_frameIn(0, 3, 8, 8, pixels);
+    ASSERT_from_frameOut_SIZE(FrameRepeater::NUM_FRAMEOUT_OUTPUT_PORTS - 1);
+}
+
 }  // namespace Components

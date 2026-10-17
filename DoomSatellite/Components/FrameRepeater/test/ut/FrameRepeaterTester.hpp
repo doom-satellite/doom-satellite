@@ -23,6 +23,7 @@ class FrameRepeaterTester final : public FrameRepeaterGTestBase {
     void testRepeatsFrames();
     void testRepeatsPalettes();
     void testSkipsUnconnectedOutputs();
+    void testOutputGate();
 
   private:
     void connectPorts();
