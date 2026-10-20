@@ -10,6 +10,7 @@ telemetry packets DoomFlightPackets {
     rateGroup10Hz.RgMaxTime
     rateGroup1Hz.RgMaxTime
     rateGroupDoom.RgMaxTime
+    rateGroupTlm.RgMaxTime
   }
 
   packet HealthWarnings id 2 group 1 {
@@ -24,6 +25,7 @@ telemetry packets DoomFlightPackets {
     rateGroup10Hz.RgCycleSlips
     rateGroup1Hz.RgCycleSlips
     rateGroupDoom.RgCycleSlips
+    rateGroupTlm.RgCycleSlips
     fileUplink.Warnings
   }
 
@@ -36,6 +38,9 @@ telemetry packets DoomFlightPackets {
     DoomSubtopology.doomBufferManager.TotalBuffs
     hubBufferManager.CurrBuffs
     DoomSubtopology.doomBufferManager.CurrBuffs
+    frameRepeater.FramesRepeated
+    frameAdapter.FramesPacked
+    frameAdapter.PackedRejected
     CdhCore.tlmSend.GroupConfigs
     CdhCore.tlmSend.SectionEnabled
     fileUplink.FilesReceived
@@ -63,6 +68,23 @@ telemetry packets DoomFlightPackets {
     DoomSubtopology.doom.FrameDataRateBps
     DoomSubtopology.doom.InputCommandRateHz
     DoomSubtopology.doom.InputDataRateBps
+  }
+
+  @ Per-phase CPU budget of the DOOM tick (Components.EngineProfiler), 1 Hz
+  packet EngineBudget id 0x102 group 1 {
+    engineProfiler.Ticks
+    engineProfiler.TickMaxUs
+    engineProfiler.TickAvgUs
+    engineProfiler.RenderMaxUs
+    engineProfiler.RenderAvgUs
+    engineProfiler.BlitMaxUs
+    engineProfiler.BlitAvgUs
+    engineProfiler.EmitMaxUs
+    engineProfiler.EmitAvgUs
+    frameHandoff.FramesIn
+    frameHandoff.FramesOut
+    frameHandoff.FramesOverwritten
+    frameHandoff.DeliverMaxUs
   }
 
   packet DoomPalette id 0x101 group 1 {
@@ -229,6 +251,13 @@ telemetry packets DoomFlightPackets {
   comDriver.TxBytes
   comDriver.TxDropCount
   CdhCore.cmdDisp.CommandErrors
+  # Hub frame path: per-frame counters beyond FramesPacked, and the unpack side this deployment does not use
+  frameRepeater.PalettesRepeated
+  frameAdapter.PalettesPacked
+  frameAdapter.FramesUnpacked
+  frameAdapter.FramesRejected
+  frameAdapter.PalettesUnpacked
+  frameAdapter.PalettesRejected
   # Only has one library, no custom versions
   CdhCore.version.LibraryVersion03
   CdhCore.version.LibraryVersion04
