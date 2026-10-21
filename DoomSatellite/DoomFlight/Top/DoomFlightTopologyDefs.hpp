@@ -12,6 +12,12 @@
 #include "Svc/Subtopologies/DataProducts/PingEntries.hpp"
 #include "Svc/Subtopologies/FileHandling/PingEntries.hpp"
 
+// hub.serialOut[n] -> DoomSubtopology.doom.key*In: fpp 3.4 emits the serial-to-typed glue with the unqualified
+// `KeyEventPortSerializer` (the port lives in module Doom, the topology in DoomFlight), so make it visible here.
+#include "Doom/KeyEventPortAc.hpp"
+using Doom::KeyEventPortBuffer;
+using Doom::KeyEventPortSerializer;
+
 // SubtopologyTopologyDefs includes
 #include "Svc/Subtopologies/CdhCore/SubtopologyTopologyDefs.hpp"
 #include "Svc/Subtopologies/ComCcsds/SubtopologyTopologyDefs.hpp"
@@ -56,6 +62,9 @@ namespace DoomFlight_rateGroup1Hz {
 enum { WARN = 3, FATAL = 5 };
 }
 namespace DoomFlight_rateGroupDoom {
+enum { WARN = 3, FATAL = 5 };
+}
+namespace DoomFlight_rateGroupTlm {
 enum { WARN = 3, FATAL = 5 };
 }
 namespace DoomFlight_fileUplink {

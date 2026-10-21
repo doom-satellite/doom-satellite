@@ -10,6 +10,7 @@ telemetry packets DoomFlightPackets {
     rateGroup10Hz.RgMaxTime
     rateGroup1Hz.RgMaxTime
     rateGroupDoom.RgMaxTime
+    rateGroupTlm.RgMaxTime
   }
 
   packet HealthWarnings id 2 group 1 {
@@ -24,6 +25,7 @@ telemetry packets DoomFlightPackets {
     rateGroup10Hz.RgCycleSlips
     rateGroup1Hz.RgCycleSlips
     rateGroupDoom.RgCycleSlips
+    rateGroupTlm.RgCycleSlips
     fileUplink.Warnings
   }
 
@@ -36,6 +38,9 @@ telemetry packets DoomFlightPackets {
     DoomSubtopology.doomBufferManager.TotalBuffs
     hubBufferManager.CurrBuffs
     DoomSubtopology.doomBufferManager.CurrBuffs
+    frameRepeater.FramesRepeated
+    frameAdapter.FramesPacked
+    frameAdapter.PackedRejected
     CdhCore.tlmSend.GroupConfigs
     CdhCore.tlmSend.SectionEnabled
     fileUplink.FilesReceived
@@ -65,158 +70,167 @@ telemetry packets DoomFlightPackets {
     DoomSubtopology.doom.InputDataRateBps
   }
 
+  @ Per-phase CPU budget of the DOOM tick (Components.EngineProfiler), 1 Hz
+  packet EngineBudget id 0x102 group 1 {
+    engineProfiler.Ticks
+    engineProfiler.ResetCause
+    engineProfiler.CpuIdlePct
+    engineProfiler.TickMaxUs
+    engineProfiler.TickAvgUs
+    engineProfiler.RenderMaxUs
+    engineProfiler.RenderAvgUs
+    engineProfiler.BlitMaxUs
+    engineProfiler.BlitAvgUs
+    engineProfiler.EmitMaxUs
+    engineProfiler.EmitAvgUs
+    engineProfiler.TickCpuAvgUs
+    engineProfiler.SlipTicks
+    engineProfiler.StallTicks
+    engineProfiler.SlipWallAvgUs
+    engineProfiler.SlipCpuAvgUs
+    engineProfiler.StallWallAvgUs
+    engineProfiler.StallCpuAvgUs
+    engineProfiler.StallIdleAvgUs
+    engineProfiler.SlipThr00Us
+    engineProfiler.SlipThr01Us
+    engineProfiler.SlipThr02Us
+    engineProfiler.SlipThr03Us
+    engineProfiler.SlipThr04Us
+    engineProfiler.SlipThr05Us
+    engineProfiler.SlipThr06Us
+    engineProfiler.SlipThr07Us
+    engineProfiler.SlipThr08Us
+    engineProfiler.SlipThr09Us
+    engineProfiler.SlipThr10Us
+    engineProfiler.SlipThr11Us
+    engineProfiler.SlipThr12Us
+    engineProfiler.SlipThr13Us
+    engineProfiler.SlipThr14Us
+    engineProfiler.SlipThr15Us
+    engineProfiler.SlipThr16Us
+    engineProfiler.SlipThr17Us
+    engineProfiler.SlipThr18Us
+    engineProfiler.SlipThr19Us
+    engineProfiler.SlipThr20Us
+    engineProfiler.SlipThr21Us
+    engineProfiler.SlipThr22Us
+    engineProfiler.SlipThr23Us
+    engineProfiler.SkipCount
+    engineProfiler.SkipAgeAvgUs
+    engineProfiler.SkipThr00Us
+    engineProfiler.SkipThr01Us
+    engineProfiler.SkipThr02Us
+    engineProfiler.SkipThr03Us
+    engineProfiler.SkipThr04Us
+    engineProfiler.SkipThr05Us
+    engineProfiler.SkipThr06Us
+    engineProfiler.SkipThr07Us
+    engineProfiler.SkipThr08Us
+    engineProfiler.SkipThr09Us
+    engineProfiler.SkipThr10Us
+    engineProfiler.SkipThr11Us
+    engineProfiler.SkipThr12Us
+    engineProfiler.SkipThr13Us
+    engineProfiler.SkipThr14Us
+    engineProfiler.SkipThr15Us
+    engineProfiler.SkipThr16Us
+    engineProfiler.SkipThr17Us
+    engineProfiler.SkipThr18Us
+    engineProfiler.SkipThr19Us
+    engineProfiler.SkipThr20Us
+    engineProfiler.SkipThr21Us
+    engineProfiler.SkipThr22Us
+    engineProfiler.SkipThr23Us
+    frameHandoff.FramesIn
+    frameHandoff.FramesOut
+    frameHandoff.FramesOverwritten
+    frameHandoff.DeliverMaxUs
+    frameStreamer.FramesSent
+    frameStreamer.FramesSkipped
+    frameStreamer.FramesLinkDown
+    frameStreamer.SendAvgUs
+    frameStreamer.SendMaxUs
+    frameStreamer.TxAvgUs
+    frameStreamer.CpuPct
+    frameStreamer.SockFlags
+    frameStreamer.SendAgain
+    frameStreamer.ChunksSent
+    frameStreamer.SendErrors
+    frameStreamer.TxTimeMaxUs
+    frameStreamer.CopyTimeMaxUs
+    frameStreamer.KicksDropped
+    frameStreamer.ReplaySuppressed
+    frameStreamer.PickupAvgUs
+    frameStreamer.PickupMaxUs
+  }
+
   packet DoomPalette id 0x101 group 1 {
     DoomSubtopology.frameTlmProcessor.PaletteOut
   }
 
-  packet DoomFrameRow000 id 0x200 group 1 {
+  @ Ten scanlines per packet: 5 row packets + palette = 6 downlink packets per ground frame instead of 51
+  packet DoomFrameRows000 id 0x200 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow000
-  }
-  packet DoomFrameRow001 id 0x201 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow001
-  }
-  packet DoomFrameRow002 id 0x202 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow002
-  }
-  packet DoomFrameRow003 id 0x203 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow003
-  }
-  packet DoomFrameRow004 id 0x204 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow004
-  }
-  packet DoomFrameRow005 id 0x205 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow005
-  }
-  packet DoomFrameRow006 id 0x206 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow006
-  }
-  packet DoomFrameRow007 id 0x207 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow007
-  }
-  packet DoomFrameRow008 id 0x208 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow008
-  }
-  packet DoomFrameRow009 id 0x209 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow009
   }
-  packet DoomFrameRow010 id 0x20a group 1 {
+  @ Ten scanlines per packet: 5 row packets + palette = 6 downlink packets per ground frame instead of 51
+  packet DoomFrameRows010 id 0x201 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow010
-  }
-  packet DoomFrameRow011 id 0x20b group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow011
-  }
-  packet DoomFrameRow012 id 0x20c group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow012
-  }
-  packet DoomFrameRow013 id 0x20d group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow013
-  }
-  packet DoomFrameRow014 id 0x20e group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow014
-  }
-  packet DoomFrameRow015 id 0x20f group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow015
-  }
-  packet DoomFrameRow016 id 0x210 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow016
-  }
-  packet DoomFrameRow017 id 0x211 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow017
-  }
-  packet DoomFrameRow018 id 0x212 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow018
-  }
-  packet DoomFrameRow019 id 0x213 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow019
   }
-  packet DoomFrameRow020 id 0x214 group 1 {
+  @ Ten scanlines per packet: 5 row packets + palette = 6 downlink packets per ground frame instead of 51
+  packet DoomFrameRows020 id 0x202 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow020
-  }
-  packet DoomFrameRow021 id 0x215 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow021
-  }
-  packet DoomFrameRow022 id 0x216 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow022
-  }
-  packet DoomFrameRow023 id 0x217 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow023
-  }
-  packet DoomFrameRow024 id 0x218 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow024
-  }
-  packet DoomFrameRow025 id 0x219 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow025
-  }
-  packet DoomFrameRow026 id 0x21a group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow026
-  }
-  packet DoomFrameRow027 id 0x21b group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow027
-  }
-  packet DoomFrameRow028 id 0x21c group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow028
-  }
-  packet DoomFrameRow029 id 0x21d group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow029
   }
-  packet DoomFrameRow030 id 0x21e group 1 {
+  @ Ten scanlines per packet: 5 row packets + palette = 6 downlink packets per ground frame instead of 51
+  packet DoomFrameRows030 id 0x203 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow030
-  }
-  packet DoomFrameRow031 id 0x21f group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow031
-  }
-  packet DoomFrameRow032 id 0x220 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow032
-  }
-  packet DoomFrameRow033 id 0x221 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow033
-  }
-  packet DoomFrameRow034 id 0x222 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow034
-  }
-  packet DoomFrameRow035 id 0x223 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow035
-  }
-  packet DoomFrameRow036 id 0x224 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow036
-  }
-  packet DoomFrameRow037 id 0x225 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow037
-  }
-  packet DoomFrameRow038 id 0x226 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow038
-  }
-  packet DoomFrameRow039 id 0x227 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow039
   }
-  packet DoomFrameRow040 id 0x228 group 1 {
+  @ Ten scanlines per packet: 5 row packets + palette = 6 downlink packets per ground frame instead of 51
+  packet DoomFrameRows040 id 0x204 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow040
-  }
-  packet DoomFrameRow041 id 0x229 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow041
-  }
-  packet DoomFrameRow042 id 0x22a group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow042
-  }
-  packet DoomFrameRow043 id 0x22b group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow043
-  }
-  packet DoomFrameRow044 id 0x22c group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow044
-  }
-  packet DoomFrameRow045 id 0x22d group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow045
-  }
-  packet DoomFrameRow046 id 0x22e group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow046
-  }
-  packet DoomFrameRow047 id 0x22f group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow047
-  }
-  packet DoomFrameRow048 id 0x230 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow048
-  }
-  packet DoomFrameRow049 id 0x231 group 1 {
     DoomSubtopology.frameTlmProcessor.FrameRow049
   }
 
@@ -229,6 +243,13 @@ telemetry packets DoomFlightPackets {
   comDriver.TxBytes
   comDriver.TxDropCount
   CdhCore.cmdDisp.CommandErrors
+  # Hub frame path: per-frame counters beyond FramesPacked, and the unpack side this deployment does not use
+  frameRepeater.PalettesRepeated
+  frameAdapter.PalettesPacked
+  frameAdapter.FramesUnpacked
+  frameAdapter.FramesRejected
+  frameAdapter.PalettesUnpacked
+  frameAdapter.PalettesRejected
   # Only has one library, no custom versions
   CdhCore.version.LibraryVersion03
   CdhCore.version.LibraryVersion04

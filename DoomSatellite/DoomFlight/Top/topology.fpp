@@ -8,7 +8,17 @@ module DoomFlight {
     rateGroup10Hz
     rateGroup1Hz
     rateGroupDoom
+    rateGroupTlm
   }
+
+  @ frameRepeater output slots: the local row telemetry and the hub packer
+  enum Ports_FrameRepeater {
+    LOCAL
+    HUB
+  }
+
+  @ GenericHub bufferIn/bufferOut port carrying the packed DOOM frames and palettes (same index on DoomCoprocessor)
+  constant HUB_FRAME_PORT = 0
 
   deployment topology DoomFlight {
 
@@ -33,6 +43,7 @@ module DoomFlight {
     instance rateGroup10Hz
     instance rateGroup1Hz
     instance rateGroupDoom
+    instance rateGroupTlm
     instance fileUplink
     instance rateGroupDriver
     instance timer
@@ -44,6 +55,11 @@ module DoomFlight {
     instance hubComDriver
     instance hubByteStreamAdapter
     instance hubBufferManager
+    instance frameHandoff
+    instance frameStreamer
+    instance frameRepeater
+    instance frameAdapter
+    instance engineProfiler
 
   # ----------------------------------------------------------------------
   # Pattern graph specifiers
@@ -108,17 +124,33 @@ module DoomFlight {
       hub.eventOut -> CdhCore.events.LogRecv
     }
 
+    connections HubKeys {
+      # Key events from the coprocessor (viewer keyboard -> DoomKeyBridge -> hub) into the engine's input queue
+      hub.serialOut[0] -> DoomSubtopology.doom.keyDownIn
+      hub.serialOut[1] -> DoomSubtopology.doom.keyUpIn
+    }
+
     connections HubTelemetry {
       # Remote telemetry is packetized for the local downlink
       hub.tlmOut -> CdhCore.tlmSend.TlmRecv
     }
 
     connections FramePipeline {
-      # Synchronous on the rateGroupDoom thread: engine -> downsampler -> row and palette telemetry
+      # On the rateGroupDoom thread: engine -> downsampler (in place) -> frameHandoff (copy). On frameHandoff's own,
+      # lower-priority thread: repeater -> row and palette telemetry, plus a packed copy of each frame and palette to
+      # DoomCoprocessor over the hub
       DoomSubtopology.doom.frameOut               -> DoomSubtopology.frameDownsampler.frameIn
       DoomSubtopology.doom.paletteOut             -> DoomSubtopology.frameDownsampler.paletteIn
-      DoomSubtopology.frameDownsampler.frameOut   -> DoomSubtopology.frameTlmProcessor.frameIn
-      DoomSubtopology.frameDownsampler.paletteOut -> DoomSubtopology.frameTlmProcessor.paletteIn
+      DoomSubtopology.frameDownsampler.frameOut   -> frameHandoff.frameIn
+      DoomSubtopology.frameDownsampler.paletteOut -> frameHandoff.paletteIn
+      frameHandoff.frameOut                       -> frameRepeater.frameIn
+      frameHandoff.paletteOut                     -> frameRepeater.paletteIn
+      frameRepeater.frameOut[Ports_FrameRepeater.LOCAL]   -> DoomSubtopology.frameTlmProcessor.frameIn
+      frameRepeater.paletteOut[Ports_FrameRepeater.LOCAL] -> DoomSubtopology.frameTlmProcessor.paletteIn
+      frameRepeater.frameOut[Ports_FrameRepeater.HUB]     -> frameAdapter.frameIn
+      frameRepeater.paletteOut[Ports_FrameRepeater.HUB]   -> frameAdapter.paletteIn
+      frameAdapter.packedOut             -> hub.bufferIn[HUB_FRAME_PORT]
+      hub.bufferInReturn[HUB_FRAME_PORT] -> frameAdapter.packedOutReturn
     }
 
     connections Hub {
@@ -154,7 +186,7 @@ module DoomFlight {
       rateGroup1Hz.RateGroupMemberOut[0] -> ComCcsds.comQueue.run
       rateGroup1Hz.RateGroupMemberOut[1] -> CdhCore.$health.Run
       rateGroup1Hz.RateGroupMemberOut[2] -> ComCcsds.commsBufferManager.schedIn
-      rateGroup1Hz.RateGroupMemberOut[3] -> CdhCore.tlmSend.Run
+      rateGroup1Hz.RateGroupMemberOut[3] -> engineProfiler.schedIn
       rateGroup1Hz.RateGroupMemberOut[4] -> ComCcsds.aggregator.timeout
       rateGroup1Hz.RateGroupMemberOut[5] -> CdhCore.Subtopology.eventsRun
       rateGroup1Hz.RateGroupMemberOut[6] -> hubBufferManager.schedIn
@@ -163,6 +195,9 @@ module DoomFlight {
       # DOOM rate group (DOOM_RATE_HZ in DoomFlightTopology.cpp): one engine tick per cycle
       rateGroupDriver.CycleOut[Ports_RateGroups.rateGroupDoom] -> rateGroupDoom.CycleIn
       rateGroupDoom.RateGroupMemberOut[0] -> DoomSubtopology.doom.schedIn
+
+      rateGroupDriver.CycleOut[Ports_RateGroups.rateGroupTlm] -> rateGroupTlm.CycleIn
+      rateGroupTlm.RateGroupMemberOut[0] -> CdhCore.tlmSend.Run
     }
 
     connections DoomFlight {
