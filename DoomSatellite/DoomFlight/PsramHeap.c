@@ -88,7 +88,14 @@ static void* psram_alloc(size_t size) {
     return ptr;
 }
 
+extern void* screen_buffers_claim(size_t size);  // ScreenBuffers.c
+extern int screen_buffers_owns(const void* ptr);
+
 void* __wrap_malloc(size_t size) {
+    void* dtcm = screen_buffers_claim(size);
+    if (dtcm != NULL) {
+        return dtcm;
+    }
     if (psram_ready && (size >= PSRAM_HEAP_THRESHOLD)) {
         void* ptr = psram_alloc(size);
         if (ptr != NULL) {
@@ -101,6 +108,9 @@ void* __wrap_malloc(size_t size) {
 }
 
 void __wrap_free(void* ptr) {
+    if (screen_buffers_owns(ptr)) {
+        return;
+    }
     if (in_psram(ptr)) {
         k_spinlock_key_t key = k_spin_lock(&psram_lock);
         sys_heap_free(&psram_heap, ptr);
@@ -148,6 +158,16 @@ SYS_INIT(psram_heap_init, POST_KERNEL, 1);
 
 /* Console report for main(): the POST_KERNEL init runs before the USB console enumerates */
 void psram_heap_report(void) {
+    /* Largest block the OCRAM arena still hands out (probe by halving): the margin left for late small allocations */
+    size_t probe = 256U * 1024U;
+    void* block = NULL;
+    while ((probe >= 256U) && ((block = __real_malloc(probe)) == NULL)) {
+        probe /= 2U;
+    }
+    if (block != NULL) {
+        __real_free(block);
+    }
+    printk("OcramHeap: largest free block >= %u B\n", (block != NULL) ? (unsigned)probe : 0U);
     printk("PsramHeap: arena %p..%p (%u B), boot read-back %u/%u words failed (first 0x%08x=0x%08x), ready=%d\n",
            (void*)psram_arena, (void*)(psram_arena + PSRAM_HEAP_SIZE), (unsigned)PSRAM_HEAP_SIZE,
            (unsigned)psram_test_errors, (unsigned)psram_test_words, (unsigned)psram_first_bad_addr,

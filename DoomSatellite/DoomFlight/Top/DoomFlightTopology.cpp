@@ -5,6 +5,7 @@
 // ======================================================================
 // Provides access to autocoded functions
 #include <DoomSatellite/DoomFlight/Top/DoomFlightTopologyAc.hpp>
+#include <DoomSatellite/DoomFlight/Top/Ports_FrameRepeaterEnumAc.hpp>
 
 // Necessary project-specified types
 #include <Fw/Types/MallocAllocator.hpp>
@@ -14,6 +15,15 @@
 #include <zephyr/kernel.h>
 
 #include <cstring>
+
+extern "C" uint8_t* stream_slot(unsigned int index);  // ScreenBuffers.c: PSRAM slots for frameStreamer
+
+#include <zephyr/net/net_if.h>
+//! Carrier state of the default (Ethernet) interface, for frameStreamer's link check
+static bool ethernetCarrierUp() {
+    struct net_if* iface = net_if_get_default();
+    return (iface != nullptr) && net_if_is_up(iface) && net_if_is_carrier_ok(iface);
+}
 
 // Allows easy reference to objects in FPP/autocoder required namespaces
 using namespace DoomFlight;
@@ -35,13 +45,26 @@ constexpr FwSizeType getRateGroupPeriod(const FwSizeType hz) {
 // downlink. The engine paces game time per tick, so play runs at 30/35 of real time. The 640x400 upscale and a
 // frame copy used to cost ~50 ms more and forced 5 Hz. See the rateGroupDoom comment in instances.fpp.
 constexpr FwSizeType DOOM_RATE_HZ = 30;
+// Ground frame rate: one TlmPacketizer run per tick of rateGroupTlm. A complete 80x50 frame is 51 packets (palette +
+// 50 rows), ~7.5 kB on the wire. Measured on the Teensy with the engine at 30 Hz: 10 Hz and above starve the engine
+// until health reports rateGroupDoom's ping late (~113 kB/s is also where the CDC link tops out); 5 Hz still pulls
+// the engine down to ~22 Hz; 2 Hz keeps it at ~29 Hz with ~300 rate group slips/min (1 Hz: ~16/min). A higher
+// ground rate needs a cheaper encoding than 51 channel packets per frame.
+constexpr FwSizeType TLM_RATE_HZ = 15;
+constexpr FwSizeType DOOM_PERIOD_MS = getRateGroupPeriod(DOOM_RATE_HZ);  // 33
+constexpr FwSizeType DOWNLINK_PHASE_MS = 20;  // after the DOOM tick's ~18 ms wall, before the next post
 
 // The 1 kHz base timer is divided into the 10Hz, 1Hz and DOOM rate groups with 0 offset
 Svc::RateGroupDriver::DividerSet rateGroupDivisorsSet{{
     // Array of divider objects
-    {getRateGroupPeriod(10), 0},            // 10Hz
-    {getRateGroupPeriod(1), 0},             // 1Hz
-    {getRateGroupPeriod(DOOM_RATE_HZ), 0},  // DOOM
+    // The DOOM group fires on every 33rd driver tick (offset 0) and its tick runs ~10 ms CPU / ~18 ms wall from the
+    // post. The other groups are phase-locked to DOOM cycles (periods are multiples of 33 ms) and offset so their
+    // posts land after the tick has finished: the downlink burst at +20 ms of every other cycle, the 1 Hz work at
+    // +20 ms of a cycle without a downlink burst, so neither coincides with a DOOM tick or with each other.
+    {3 * DOOM_PERIOD_MS, DOWNLINK_PHASE_MS},                     // "10Hz" (10.1 Hz)
+    {30 * DOOM_PERIOD_MS, DOWNLINK_PHASE_MS + DOOM_PERIOD_MS},   // "1Hz" (1.01 Hz)
+    {DOOM_PERIOD_MS, 0},                                        // DOOM (30.3 Hz)
+    {2 * DOOM_PERIOD_MS, DOWNLINK_PHASE_MS},                     // telemetry packetizer (15.15 Hz ground frame rate)
 }};
 
 // Rate groups may supply a context token to each of the attached children whose purpose is set by the project. The
@@ -50,6 +73,7 @@ U32 rateGroup10HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {getRateG
 U32 rateGroup1HzContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {getRateGroupPeriod(1)};
 U32 rateGroupDoomContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {
     static_cast<U32>(getRateGroupPeriod(DOOM_RATE_HZ) * BASE_RATEGROUP_PERIOD_MS * 1000)};
+U32 rateGroupTlmContext[Svc::ActiveRateGroup::CONNECTION_COUNT_MAX] = {getRateGroupPeriod(TLM_RATE_HZ)};
 
 enum TopologyConstants {
     HUB_BUFFER_MANAGER_ID = 300,
@@ -57,6 +81,8 @@ enum TopologyConstants {
     HUB_SMALL_BUFFER_COUNT = 8,
     HUB_LARGE_BUFFER_SIZE = 4096,  // UDP receive buffers and packed frames (4,009 bytes, 4,025 with the hub header)
     HUB_LARGE_BUFFER_COUNT = 12,
+    STREAM_PORT = 50601,  // raw UDP native-frame stream to the coprocessor (Components::FrameStreamer)
+    STREAM_DIVISOR = 1,   // stream every engine frame (30 fps); SET_RATE raises the divisor from the ground
     HUB_RECV_PRIORITY = 5,
     HUB_RECONNECT_PRIORITY = 6,
 };
@@ -97,6 +123,7 @@ void configureTopology(const TopologyState& state) {
     rateGroup10Hz.configure(rateGroup10HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup10HzContext));
     rateGroup1Hz.configure(rateGroup1HzContext, FW_NUM_ARRAY_ELEMENTS(rateGroup1HzContext));
     rateGroupDoom.configure(rateGroupDoomContext, FW_NUM_ARRAY_ELEMENTS(rateGroupDoomContext));
+    rateGroupTlm.configure(rateGroupTlmContext, FW_NUM_ARRAY_ELEMENTS(rateGroupTlmContext));
     // Reboot into the bootloader when the host opens the console at the board's touch baud rate
     if (touchReset.configure(state.uartDevice) != Fw::Success::SUCCESS) {
         printk("Touch reset unavailable\n");
@@ -114,6 +141,16 @@ void configureTopology(const TopologyState& state) {
     (void)hubComDriver.configureRecv("0.0.0.0", state.hubLocalPort, HUB_LARGE_BUFFER_SIZE);
 
     cmdSplitter.configure(REMOTE_BASE_OPCODE);
+    // The hub slot runs hubComDriver's synchronous UDP send in the DOOM rate group thread; with the coprocessor
+    // unreachable (no ARP reply for hubRemoteAddress) that send blocked the engine for good on the bench
+    // (FrameCount froze at 11 while the 1 Hz group kept running). Start with the slot off; enable it from the
+    // ground with frameRepeater SET_OUTPUT(HUB, ENABLED) once the coprocessor answers on the link.
+    frameRepeater.setOutputEnabled(static_cast<FwIndexType>(DoomFlight::Ports_FrameRepeater::HUB), false);
+
+    // The native-frame stream shares the coprocessor's address with the hub; its sends run on frameStreamer's own
+    // thread (below the engine), so it can start enabled: an unreachable peer costs the engine only the frame copy.
+    frameStreamer.configure(stream_slot(0), stream_slot(1), state.hubRemoteAddress, STREAM_PORT, STREAM_DIVISOR, true,
+                            &ethernetCarrierUp);
 
     fileUplink.configure((state.fileUplinkDirectory != nullptr) ? state.fileUplinkDirectory : "/");
 
@@ -131,6 +168,7 @@ void configureTopology(const TopologyState& state) {
 }
 
 // Public functions for use in main program are namespaced with deployment name DoomFlight
+
 namespace DoomFlight {
 void setupTopology(const TopologyState& state) {
     // Autocoded initialization. Function provided by autocoder.
@@ -161,8 +199,9 @@ void setupTopology(const TopologyState& state) {
         printk("DoomFlight: auto-start: doom.forceStart() returned %s\n", status.toChar());
     }
 
-    comDriver.configure(state.uartDevice, state.baudRate);
+    comDriver.configure(state.groundUartDevice, state.baudRate, state.groundFlowControl);
 #if defined(CONFIG_USBD_CDC_ACM_CLASS)
+    // The CDC ACM UART is also the console: without this, console writes stall while no host has the port open
     cdcUartDevice = state.uartDevice;
     k_work_init_delayable(&cdcFlowControlWork, updateCdcFlowControl);
     (void)k_work_schedule(&cdcFlowControlWork, K_NO_WAIT);

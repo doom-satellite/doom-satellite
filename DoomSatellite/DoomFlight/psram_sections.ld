@@ -6,6 +6,16 @@ SECTION_PROLOGUE(psram_bss,(NOLOAD),)
 {
 	. = ALIGN(32);
 	*(.bss._ZN15DoomSubtopology4doomE)
+	/* CdhCore::tlmSend (Svc.TlmPacketizer, ~98 KiB of channel and packet storage): OCRAM ran out of malloc arena for
+	 * the comm BufferManager once frameHandoff and frameStreamer were added; its small per-channel writes and the
+	 * 2 Hz packet sends do not need tightly coupled RAM. */
+	. = ALIGN(32);
+	*(.bss._ZN7CdhCore7tlmSendE)
+	/* Zephyr net_pkt.c buffer pools (net_buf_data_rx_bufs / tx_bufs, ~240 KiB at CONFIG_NET_BUF_DATA_SIZE=1536) are
+	 * file-local, so they land in anonymous .noinit.<path>net_pkt.c.<n> sections; the ENET driver copies them through
+	 * its own DMA buffers, so PSRAM is fine for them. */
+	. = ALIGN(32);
+	*(.noinit.*net_pkt.c.[0-9]*)
 	. = ALIGN(32);
 } GROUP_LINK_IN(PSRAM)
 __psram_bss_start = ADDR(psram_bss);

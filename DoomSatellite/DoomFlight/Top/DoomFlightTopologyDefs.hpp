@@ -12,6 +12,12 @@
 #include "Svc/Subtopologies/DataProducts/PingEntries.hpp"
 #include "Svc/Subtopologies/FileHandling/PingEntries.hpp"
 
+// hub.serialOut[n] -> DoomSubtopology.doom.key*In: fpp 3.4 emits the serial-to-typed glue with the unqualified
+// `KeyEventPortSerializer` (the port lives in module Doom, the topology in DoomFlight), so make it visible here.
+#include "Doom/KeyEventPortAc.hpp"
+using Doom::KeyEventPortBuffer;
+using Doom::KeyEventPortSerializer;
+
 // SubtopologyTopologyDefs includes
 #include "Svc/Subtopologies/CdhCore/SubtopologyTopologyDefs.hpp"
 #include "Svc/Subtopologies/ComCcsds/SubtopologyTopologyDefs.hpp"
@@ -28,6 +34,7 @@
 // DoomSubtopology configuration phases: memAllocator and the BufferManager bins
 #include "Doom/DoomConfig/FppConstantsAc.hpp"
 #include "Doom/DoomSubtopology/SubtopologyTopologyDefs.hpp"
+
 
 /**
  * \brief required ping constants
@@ -58,6 +65,9 @@ enum { WARN = 3, FATAL = 5 };
 namespace DoomFlight_rateGroupDoom {
 enum { WARN = 3, FATAL = 5 };
 }
+namespace DoomFlight_rateGroupTlm {
+enum { WARN = 3, FATAL = 5 };
+}
 namespace DoomFlight_fileUplink {
 enum { WARN = 3, FATAL = 5 };
 }
@@ -74,7 +84,9 @@ namespace DoomFlight {
  * contents are entirely up to the definition of the project. This deployment uses subtopologies.
  */
 struct TopologyState {
-    const device* uartDevice;             //!< USB CDC ACM UART carrying the ground link and the touch reset
+    const device* uartDevice;             //!< USB CDC ACM UART carrying the console and the touch reset
+    const device* groundUartDevice;       //!< UART carrying the F Prime ground link (XBee or the CDC ACM UART)
+    enum uart_config_flow_control groundFlowControl;  //!< Flow control of the ground link UART
     U32 baudRate;                         //!< Baud rate for the ground link UART
     const char* hubRemoteAddress;         //!< IPv4 address of the remote GenericHub deployment
     U16 hubRemotePort;                    //!< UDP port the remote GenericHub receives on

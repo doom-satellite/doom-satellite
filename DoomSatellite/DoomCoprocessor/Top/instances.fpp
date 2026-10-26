@@ -56,4 +56,13 @@ module DoomCoprocessor {
 
   instance linuxTimer: Svc.LinuxTimer base id 0x20009000
 
+  @ Unpacks the frames and palettes DoomFlight sends over the hub (Components.FrameBufferAdapter packedIn side)
+  instance frameAdapter: Components.FrameBufferAdapter base id 0x2000A000
+
+  @ Python (fprime-python) reader of the unpacked frames
+  instance frameReader: Components.DoomFrameReader base id 0x2000C000
+
+  @ Python (fprime-python) bridge from the viewer's keyboard to the engine's key ports over the hub
+  instance keyBridge: Components.DoomKeyBridge base id 0x2000D000
+
 }
